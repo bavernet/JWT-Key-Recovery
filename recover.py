@@ -55,7 +55,7 @@ def getKeysize(sig):
     # having a small length difference with the real key does not matter in practice
     return sig_size
 
-def recoverRSAKey(token1, token2, e, hashalg):
+def recoverRSAKey(token1, token2, e, hashalg, out):
     header1, body1, sig1 = token1.split(".")
     header2, body2, sig2 = token2.split(".")
 
@@ -96,7 +96,12 @@ def recoverRSAKey(token1, token2, e, hashalg):
     print("Found public RSA key !")
     dprint(f"Real key size : {n.bit_length()} bits")
     print(f"{n=}\n{e=}")
-    print(RSA.construct((n, e)).exportKey(format="PEM").decode())
+    pubKey = RSA.construct((n, e)).exportKey(format="PEM").decode()
+    print(pubKey)
+    if out:
+        f = open(out, "w")
+        f.write(pubKey + "\n")
+        f.close()
 
 
 def recoverECDSAKey(tokens, hashalg, curve, compressed):
@@ -145,7 +150,7 @@ def recoverECDSAKey(tokens, hashalg, curve, compressed):
     print(f"x={k2.x}\ny={k2.y}")
     print(k2_.export_key(format="PEM", compress=compressed))
 
-def handleRSA(alg, tokens, e):
+def handleRSA(alg, tokens, e, out):
     if len(tokens) < 2:
         print(f"2 tokens are needed for {alg} algorithm.")
         return
@@ -160,11 +165,11 @@ def handleRSA(alg, tokens, e):
     print(f"Recovering public key for algorithm {alg}...")
     t1, t2 = tokens[:2]
     if alg == "RS256":
-        recoverRSAKey(t1, t2, e, SHA256)
+        recoverRSAKey(t1, t2, e, SHA256, out)
     elif alg == "RS384":
-        recoverRSAKey(t1, t2, e, SHA384)
+        recoverRSAKey(t1, t2, e, SHA384, out)
     elif alg == "RS512":
-        recoverRSAKey(t1, t2, e, SHA512)
+        recoverRSAKey(t1, t2, e, SHA512, out)
     else:
         print(f"Algorithm {alg} not supported.")
 
@@ -202,6 +207,7 @@ def getArgs():
     parser.add_argument("-v", action="store_true", help="Verbose output, useful for debugging.", required=False)
     parser.add_argument("-f", type=int, help="Remove small factors up to this value. (default=2000)", default=2000,
                         required=False)
+    parser.add_argument("-o", type=str, help="Path to store the recovered key (only for RSA based tokens)", required=False)
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -219,7 +225,7 @@ if __name__ == "__main__":
 
     # RSASSA-PKCS1v1_5
     if alg[:2] == "RS":
-        handleRSA(alg, tokens, args.e)
+        handleRSA(alg, tokens, args.e, args.o)
     # RSASSA-PSS
     elif alg[:2] == "PS":
         print(f"Sadly it's not possible to recover the public key used with algorithm {alg}, because it uses a non-deterministic padding.")
